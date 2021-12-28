@@ -10,3 +10,6 @@ sim-verilog:
 
 emu: sim-verilog
 	cd $(TRIGGER_HOME)/difftest && $(MAKE) WITH_DRAMSIM3=1 EMU_TRACE=1 emu -j
+
+clean: 
+	rm -rf build out
