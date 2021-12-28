@@ -50,11 +50,7 @@ int strcmp(const char *s1, const char *s2) {
         {
             return 1;
         }
-        else if (j==0)
-        {
-            return 0;
-        }
-        else
+        else if (j < 0)
         {
             return -1;
         }
