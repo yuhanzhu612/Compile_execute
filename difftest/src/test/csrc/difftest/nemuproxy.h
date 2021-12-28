@@ -14,32 +14,42 @@
 * See the Mulan PSL v2 for more details.
 ***************************************************************************************/
 
-#ifndef MEMDEP_H
-#define MEMDEP_H
+#ifndef __NEMU_PROXY_H
+#define __NEMU_PROXY_H
+
+#include <unistd.h>
+#include <dlfcn.h>
 
 #include "common.h"
 
-typedef struct MemInstInfo {
-  uint64_t pc;
-  uint64_t vaddr;
-}MemInstInfo;
+class NemuProxy {
+public:
+  // public callable functions
+  void (*memcpy)(paddr_t nemu_addr, void *dut_buf, size_t n, bool direction);
+  void (*regcpy)(void *dut, bool direction);
+  void (*csrcpy)(void *dut, bool direction);
+  void (*uarchstatus_cpy)(void *dut, bool direction);
+  int (*store_commit)(uint64_t *saddr, uint64_t *sdata, uint8_t *smask);
+  void (*exec)(uint64_t n);
+  vaddr_t (*guided_exec)(void *disambiguate_para);
+  void (*raise_intr)(uint64_t no);
+  void (*isa_reg_display)();
 
-class MemdepWatchWindow {
-  public:
-    void commit_load();
-    void commit_store();
-    void commit_load(uint64_t pc);
-    void commit_store(uint64_t pc);
-    void watch_load(uint64_t pc, uint64_t vaddr);
-    void watch_store(uint64_t pc, uint64_t vaddr);
-    bool query_load_store_dep(uint64_t load_pc, uint64_t load_vaddr);
-    void update_pred_matrix(bool dut_result, bool ref_result);
-    void print_pred_matrix();
-  private:
-    std::deque<MemInstInfo> store_inflight;
-    std::deque<MemInstInfo> load_inflight;
-    uint64_t total_dependency = 0;
-    uint64_t pred_matrix[2][2] = {};
+  NemuProxy(int coreid);
+private:
 };
+
+struct SyncState {
+  uint64_t lrscValid;
+  uint64_t lrscAddr;
+};
+
+struct ExecutionGuide {
+  uint64_t exceptionNo;
+  uint64_t mtval;
+  uint64_t stval;
+};
+
+void ref_misc_put_gmaddr(uint8_t* ptr);
 
 #endif

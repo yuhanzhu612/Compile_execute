@@ -26,11 +26,14 @@
 # Enable Verilator Savable based checkpoint
 # EMU_SNAPSHOT ?= 1
 
+# Enable Fork-wait based checkpoint 
+# EMU_FORKWAIT ?= 1
+
 # Enable Verilator coverage
 # EMU_COVERAGE ?= 1
 
 # Enable co-simulation with DRAMsim3
-# WITH_DRAMSIM3 ?= 1
+ WITH_DRAMSIM3 ?= 1
 
 # Default output period control
 # output will be generated when (B<=GTimer<=E) && (L < loglevel)

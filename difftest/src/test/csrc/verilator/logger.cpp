@@ -1,4 +1,4 @@
-#include "tllogger.h"
+#include "logger.h"
 
 bool dump_tl;
 sqlite3 *mem_db;
@@ -34,8 +34,6 @@ void init_logger(bool dump) {
                  "DATA_1            INT," \
                  "DATA_2            INT," \
                  "DATA_3            INT," \
-                 "USER              INT," \
-                 "ECHO              INT," \
                  "STAMP             INT    NOT NULL);";
     rc = sqlite3_exec(mem_db, sql, callback, 0, &zErrMsg);
     if(rc != SQLITE_OK) {
@@ -90,17 +88,15 @@ extern "C" void tl_log_write_helper(
     uint64_t data_2,
     uint64_t data_3,
     uint64_t stamp,
-    uint64_t user,
-    uint64_t echo,
     char*  prefix
 ) {
     if(!dump_tl) return;
     // insert to log db
     char sql[256];
     sprintf(sql,
-        "INSERT INTO TL_LOG(NAME,CHANNEL,OPCODE,PARAM,SOURCE,SINK,ADDRESS,DATA_0,DATA_1,DATA_2,DATA_3,USER,ECHO,STAMP) VALUES('%s',%d,%d,%d,%d,%d,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld);",
+        "INSERT INTO TL_LOG(NAME,CHANNEL,OPCODE,PARAM,SOURCE,SINK,ADDRESS,DATA_0,DATA_1,DATA_2,DATA_3,STAMP) VALUES('%s',%d,%d,%d,%d,%d,%ld,%ld,%ld,%ld,%ld,%ld);",
         prefix, channel, opcode, param, source, sink, address,
-        data_0, data_1, data_2, data_3, user, echo, stamp
+        data_0, data_1, data_2, data_3, stamp
     );
 
     rc = sqlite3_exec(mem_db, sql, callback, 0, &zErrMsg);

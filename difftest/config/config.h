@@ -30,40 +30,26 @@
 #define EMU_RAM_SIZE (8 * 1024 * 1024 * 1024UL) // 8 GB
 
 // first valid instruction's address, difftest starts from this instruction
-#ifndef FIRST_INST_ADDRESS
-#define FIRST_INST_ADDRESS 0x10000000
-#endif
+#define FIRST_INST_ADDRESS 0x80000000
 
 // sdcard image to be used in simulation
-// uncomment the following line to enable this feature
+// uncomment the follwing line to enable this feature
 // #define SDCARD_IMAGE "/home/xyn/workloads/debian/riscv-debian.img"
-
-// flash image to be used in simulation
-// uncomment the following line to enable this feature
-// #define FLASH_IMAGE "/home/jy/Project/nexus-am/tests/cputest/build/dummy-riscv64-noop.bin"
 
 // Use sdl to show screen
 // Note: It does not work well with clang, to use that, switch to gcc
-// uncomment the following line to enable this feature
+// uncomment the follwing line to enable this feature
 // #define SHOW_SCREEN
 
 // -----------------------------------------------------------------------
 // Difftest interface config
 // -----------------------------------------------------------------------
-#ifndef DIFF_PROXY
-#define DIFF_PROXY NemuProxy
-#endif
 
 // max commit width
 #define DIFFTEST_COMMIT_WIDTH 6
 
 // max store width
-//
-// max num of stores turn from predicted to non-predicted in 1 cycle
 #define DIFFTEST_STORE_WIDTH 2
-
-// max store buffer resp width, for golden mem check
-#define DIFFTEST_SBUFFER_RESP_WIDTH 3
 
 // commit inst history length 
 #define DEBUG_INST_TRACE_SIZE 32
@@ -90,62 +76,16 @@
 // time to save a snapshot
 #define SNAPSHOT_INTERVAL 60 // unit: second
 
-// if error, let simulator print debug info
-#define ENABLE_SIMULATOR_DEBUG_INFO
-
-// how many cycles child processes step forward when reaching error point
-#define STEP_FORWARD_CYCLES 100
-
 // -----------------------------------------------------------------------
 // Memory difftest config
 // -----------------------------------------------------------------------
 
 // whether to check memory coherence during refilling
-#define DEBUG_REFILL
+// #define DEBUG_REFILL
 
 // dump all tilelink trace to a database
-// uncomment the following line to enable this feature
-#define DEBUG_TILELINK
-
-
-// -----------------------------------------------------------------------
-// Simulator run ahead config
-// -----------------------------------------------------------------------
-
-// Let a fork of simulator run ahead of commit for perf analysis
-// uncomment the following line to enable this feature
-//#define ENABLE_RUNHEAD
-
-// max run ahead width
-#define DIFFTEST_RUNAHEAD_WIDTH 6
-
-// print simulator runahead debug info
-// uncomment the following line to enable this feature
-// #define RUNAHEAD_DEBUG
-
-// mem dependency check config
-#define MEMDEP_WINDOW_SIZE 64
-
-// upper bound of runahead checkpoints
-// will be ignored if AUTO_RUNAHEAD_CHECKPOINT_GC is defined
-#define RUN_AHEAD_CHECKPOINT_SIZE 64
-
-// automatically free the oldest checkpoint for runahead
-// so that we do not need to implement RunaheadCommitEvent in RTL design
-// uncomment the following line to enable this feature
-#define AUTO_RUNAHEAD_CHECKPOINT_GC
-#define AUTO_RUNAHEAD_CHECKPOINT_GC_THRESHOLD 192
-
-// -----------------------------------------------------------------------
-// Debug mode and trigger
-// -----------------------------------------------------------------------
-// make diff in debug mode available by copying debug mode mmio
-// currently only usable on spike
-//#define DEBUG_MODE_DIFF
-
-#ifndef DEBUG_MEM_BASE
-#define DEBUG_MEM_BASE 0x38020000
-#endif 
+// uncomment the follwing line to enable this feature
+//#define DEBUG_TILELINK
 
 // -----------------------------------------------------------------------
 // Do not touch
@@ -158,13 +98,6 @@
 
 #ifdef DEBUG_REFILL
     #define DEBUG_GOLDENMEM
-#endif
-
-#define RUNAHEAD_UNIT_TEST
-
-#ifdef ENABLE_RUNAHEAD
-#define TRACE_INFLIGHT_MEM_INST
-#define QUERY_MEM_ACCESS
 #endif
 
 #endif

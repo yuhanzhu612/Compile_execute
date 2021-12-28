@@ -37,14 +37,6 @@ INTERFACE_TRAP_EVENT {
   packet->instrCnt = instrCnt;
 }
 
-INTERFACE_BASIC_TRAP_EVENT {
-  RETURN_NO_NULL
-  auto packet = difftest[coreid]->get_trap_event();
-  packet->valid    = valid;
-  packet->cycleCnt = cycleCnt;
-  packet->instrCnt = instrCnt;
-}
-
 INTERFACE_ARCH_EVENT {
   RETURN_NO_NULL
   auto packet = difftest[coreid]->get_arch_event();
@@ -52,20 +44,6 @@ INTERFACE_ARCH_EVENT {
   packet->exception = cause;
   packet->exceptionPC = exceptionPC;
   packet->exceptionInst = exceptionInst;
-}
-
-INTERFACE_BASIC_INSTR_COMMIT {
-  RETURN_NO_NULL
-  auto packet = difftest[coreid]->get_instr_commit(index);
-  packet->valid    = valid;
-  if (packet->valid) {
-    packet->skip     = skip;
-    packet->isRVC    = isRVC;
-    packet->fused    = special;
-    packet->wen      = wen;
-    packet->wpdest   = wpdest;
-    packet->wdest    = wdest;
-  }
 }
 
 INTERFACE_INSTR_COMMIT {
@@ -77,10 +55,11 @@ INTERFACE_INSTR_COMMIT {
     packet->inst     = instr;
     packet->skip     = skip;
     packet->isRVC    = isRVC;
+    packet->scFailed = scFailed;
     packet->fused    = special;
     packet->wen      = wen;
-    packet->wpdest   = wpdest;
     packet->wdest    = wdest;
+    packet->wdata    = wdata;
   }
 }
 
@@ -105,24 +84,6 @@ INTERFACE_CSR_STATE {
   packet->sscratch = sscratch;
   packet->mideleg = mideleg;
   packet->medeleg = medeleg;
-}
-
-INTERFACE_DM_STATE {
-  RETURN_NO_NULL
-  auto packet = difftest[coreid]->get_debug_state();
-  packet->debugMode = dMode;
-  packet->dcsr = dcsr;
-  packet->dpc = dpc;
-  packet->dscratch0 = dscratch0;
-  packet->dscratch1 = dscratch1;
-}
-
-INTERFACE_INT_WRITEBACK {
-  RETURN_NO_NULL
-  auto packet = difftest[coreid]->get_physical_reg_state();
-  if (valid) {
-    packet->gpr[dest] = data;
-  }
 }
 
 INTERFACE_INT_REG_STATE {
@@ -160,14 +121,6 @@ INTERFACE_INT_REG_STATE {
   packet->gpr[29] = gpr_29;
   packet->gpr[30] = gpr_30;
   packet->gpr[31] = gpr_31;
-}
-
-INTERFACE_FP_WRITEBACK {
-  RETURN_NO_NULL
-  auto packet = difftest[coreid]->get_physical_reg_state();
-  if (valid) {
-    packet->fpr[dest] = data;
-  }
 }
 
 INTERFACE_FP_REG_STATE {
@@ -209,7 +162,7 @@ INTERFACE_FP_REG_STATE {
 
 INTERFACE_SBUFFER_EVENT {
   RETURN_NO_NULL
-  auto packet = difftest[coreid]->get_sbuffer_state(index);
+  auto packet = difftest[coreid]->get_sbuffer_state();
   packet->resp = sbufferResp;
   if (packet->resp) {
     packet->addr = sbufferAddr;
@@ -344,57 +297,4 @@ INTERFACE_REFILL_EVENT {
     packet->data[6] = data_6;
     packet->data[7] = data_7;
   }
-}
-
-INTERFACE_LR_SC_EVENT {
-  RETURN_NO_NULL
-  auto packet = difftest[coreid]->get_lr_sc_event();
-  if (!packet->valid && valid) {
-    packet->valid = valid;
-    packet->success = success;
-  }
-}
-
-INTERFACE_RUNAHEAD_EVENT {
-  if (runahead == NULL) return;
-  auto packet = difftest[coreid]->get_runahead_event(index);
-  packet->valid = valid;
-  if (packet->valid) {
-    packet->branch = branch;
-    packet->may_replay = may_replay;
-    packet->checkpoint_id = checkpoint_id; // a unique branch id
-    packet->pc = pc;
-  }
-}
-
-INTERFACE_RUNAHEAD_COMMIT_EVENT {
-  if (runahead == NULL) return;
-  auto packet = difftest[coreid]->get_runahead_commit_event(index);
-  packet->valid = valid;
-  if (packet->valid) {
-    packet->pc = pc; // for debug only
-  }
-}
-
-INTERFACE_RUNAHEAD_REDIRECT_EVENT {
-  if (runahead == NULL) return;
-  auto packet = difftest[coreid]->get_runahead_redirect_event();
-  packet->valid = valid;
-  if (packet->valid) {
-    packet->pc = pc;
-    packet->target_pc = target_pc;
-    packet->checkpoint_id = checkpoint_id;
-  }
-}
-
-INTERFACE_RUNAHEAD_MEMDEP_PRED {
-  if (runahead == NULL) return;
-  auto packet = difftest[coreid]->get_runahead_memdep_pred(index);
-  packet->valid = valid;
-  if (packet->valid) {
-    packet->is_load = is_load;
-    packet->need_wait = need_wait;
-    packet->pc = pc;
-  }
-  *oracle_vaddr = packet->oracle_vaddr;
 }

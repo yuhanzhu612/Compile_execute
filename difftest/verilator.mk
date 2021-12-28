@@ -19,12 +19,11 @@ include config/verilator.mk
 EMU_TOP      = SimTop
 
 EMU_CSRC_DIR = $(abspath ./src/test/csrc)
-EMU_CXXFILES = $(shell find $(EMU_CSRC_DIR) -name "*.cpp") $(SIM_CXXFILES) $(DIFFTEST_CXXFILES) $(PLUGIN_CXXFILES)
-EMU_CXXFLAGS += -std=c++11 -static -Wall -I$(EMU_CSRC_DIR) -I$(SIM_CSRC_DIR) -I$(DIFFTEST_CSRC_DIR) -I$(PLUGIN_CHEAD_DIR)
+EMU_CXXFILES = $(shell find $(EMU_CSRC_DIR) -name "*.cpp") $(SIM_CXXFILES) $(DIFFTEST_CXXFILES)
+EMU_CXXFLAGS += -std=c++11 -static -Wall -I$(EMU_CSRC_DIR) -I$(SIM_CSRC_DIR) -I$(DIFFTEST_CSRC_DIR)
 EMU_CXXFLAGS += -DVERILATOR -DNUM_CORES=$(NUM_CORES)
 EMU_CXXFLAGS += $(shell sdl2-config --cflags) -fPIE
 EMU_LDFLAGS  += -lpthread -lSDL2 -ldl -lz -lsqlite3
-EMU_CXX_EXTRA_FLAGS ?= 
 
 EMU_VFILES    = $(SIM_VSRC)
 
@@ -33,18 +32,7 @@ ifneq ($(CCACHE),)
 export OBJCACHE = ccache
 endif
 
-VEXTRA_FLAGS  = -I$(abspath $(BUILD_DIR)) --x-assign unique -O3 -CFLAGS "$(EMU_CXXFLAGS) $(EMU_CXX_EXTRA_FLAGS)" -LDFLAGS "$(EMU_LDFLAGS)"
-
-# REF SELECTION
-ifeq ($(REF),spike)
-EMU_CXXFLAGS += -DDIFF_PROXY=SpikeProxy -DFIRST_INST_ADDRESS=0x80000000
-endif
-
-# Verilator version check
-VERILATOR_4_210 := $(shell expr `verilator --version | cut -f3 -d.` \>= 210)
-ifeq ($(VERILATOR_4_210),1)
-EMU_CXXFLAGS += -DVERILATOR_4_210
-endif
+VEXTRA_FLAGS  = -I$(abspath $(BUILD_DIR)) --x-assign unique -O3 -CFLAGS "$(EMU_CXXFLAGS)" -LDFLAGS "$(EMU_LDFLAGS)"
 
 # Verilator trace support
 EMU_TRACE ?=
@@ -79,8 +67,13 @@ EMU_CXXFLAGS += -DWITH_DRAMSIM3 -DDRAMSIM3_CONFIG=\\\"$(DRAMSIM3_HOME)/configs/X
 EMU_LDFLAGS  += $(DRAMSIM3_HOME)/build/libdramsim3.a
 endif
 
-ifeq ($(RELEASE),1)
-EMU_CXXFLAGS += -DBASIC_DIFFTEST_ONLY
+ifeq ($(DUALCORE),1)
+EMU_CXXFLAGS += -DDUALCORE
+endif
+
+USE_BIN ?= 0
+ifeq ($(USE_BIN),1)
+EMU_CXXFLAGS += -DUSE_BIN
 endif
 
 # --trace
@@ -113,9 +106,7 @@ $(EMU_MK): $(SIM_TOP_V) | $(EMU_DEPS)
 	@date -R | tee -a $(TIMELOG)
 	$(TIME_CMD) verilator --cc --exe $(VERILATOR_FLAGS) \
 		-o $(abspath $(EMU)) -Mdir $(@D) $^ $(EMU_DEPS)
-	find $(BUILD_DIR) -name "VSimTop.h" | xargs sed -i 's/private/public/g'
-	find $(BUILD_DIR) -name "VSimTop.h" | xargs sed -i 's/const vlSymsp/vlSymsp/g'
-	find $(BUILD_DIR) -name "VSimTop__Syms.h" | xargs sed -i 's/VlThreadPool\* const/VlThreadPool*/g'
+	find $(BUILD_DIR) -name "VSimTop.h" | xargs sed -i 's/private/public/g' 
 
 EMU_COMPILE_FILTER =
 # 2> $(BUILD_DIR)/g++.err.log | tee $(BUILD_DIR)/g++.out.log | grep 'g++' | awk '{print "Compiling/Generating", $$NF}'

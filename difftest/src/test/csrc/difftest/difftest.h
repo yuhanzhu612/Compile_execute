@@ -19,7 +19,8 @@
 
 #include "common.h"
 
-#include "refproxy.h"
+#include "nemuproxy.h"
+#define DIFF_PROXY NemuProxy
 
 #define DIFFTEST_CORE_NUMBER  NUM_CORES
 
@@ -30,17 +31,13 @@ enum { REF_TO_DIFFTEST, DUT_TO_DIFFTEST };
 // DIFFTEST_TO_REF ~ DUT_TO_REF ~ DUT_TO_DIFFTEST
 #define CP printf("%s: %d\n", __FILE__, __LINE__);fflush( stdout );
 
-#define DEBUG_MEM_REGION(v, f) (f <= (DEBUG_MEM_BASE + 0x1000) && \
-        f >= DEBUG_MEM_BASE && \
-        v)
-#define IS_LOAD_STORE(instr) (((instr & 0x7f) == 0x03) || ((instr & 0x7f) == 0x23))
 
 // Difftest structures
 // trap events: self-defined traps
 typedef struct {
   uint8_t  valid = 0;
-  uint8_t  code = 0;
-  uint64_t pc = 0;
+  uint8_t  code;
+  uint64_t pc;
   uint64_t cycleCnt = 0;
   uint64_t instrCnt = 0;
 } trap_event_t;
@@ -60,10 +57,11 @@ typedef struct {
   uint32_t inst;
   uint8_t  skip;
   uint8_t  isRVC;
+  uint8_t  scFailed;
   uint8_t  fused;
   uint8_t  wen;
-  uint8_t  wpdest;
   uint8_t  wdest;
+  uint64_t wdata;
 } instr_commit_t;
 
 typedef struct {
@@ -93,16 +91,7 @@ typedef struct __attribute__((packed)) {
   uint64_t priviledgeMode;
 } arch_csr_state_t;
 
-typedef struct __attribute__((packed)) {
-  uint64_t debugMode;
-  uint64_t dcsr;
-  uint64_t dpc;
-  uint64_t dscratch0;
-  uint64_t dscratch1;
-} debug_mode_t;
-
 const int DIFFTEST_NR_REG = (sizeof(arch_reg_state_t) + sizeof(arch_csr_state_t)) / sizeof(uint64_t);
-// const int DIFFTEST_NR_REG = (sizeof(arch_reg_state_t) + sizeof(arch_csr_state_t) + sizeof(debug_mode_t)) / sizeof(uint64_t);
 
 typedef struct {
   uint8_t  resp = 0;
@@ -147,63 +136,17 @@ typedef struct {
 } refill_event_t;
 
 typedef struct {
-  uint8_t valid = 0;
-  uint8_t success;
-} lr_sc_evevnt_t;
-
-typedef struct {
-  uint8_t  valid = 0;
-  uint8_t  branch = 0;
-  uint8_t  may_replay = 0;
-  uint64_t pc;
-  uint64_t checkpoint_id;
-} run_ahead_event_t;
-
-typedef struct {
-  uint8_t  valid = 0;
-  uint8_t  branch = 0;
-  uint64_t pc;
-} run_ahead_commit_event_t;
-
-typedef struct {
-  uint8_t  valid = 0;
-  uint64_t pc;
-  uint64_t target_pc;
-  uint64_t checkpoint_id;
-} run_ahead_redirect_event_t;
-
-typedef struct {
-  uint8_t  valid = 0;
-  uint8_t  is_load;
-  uint8_t  need_wait;
-  uint64_t pc;
-  uint64_t oracle_vaddr;
-} run_ahead_memdep_pred_t;
-
-typedef struct {
-  uint64_t gpr[256];
-  uint64_t fpr[256];
-} physical_reg_state_t;
-
-typedef struct {
-  trap_event_t      trap;
-  arch_event_t      event;
-  instr_commit_t    commit[DIFFTEST_COMMIT_WIDTH];
-  arch_reg_state_t  regs;
-  arch_csr_state_t  csr;
-  debug_mode_t      dmregs;
-  sbuffer_state_t   sbuffer[DIFFTEST_SBUFFER_RESP_WIDTH];
-  store_event_t     store[DIFFTEST_STORE_WIDTH];
-  load_event_t      load[DIFFTEST_COMMIT_WIDTH];
-  atomic_event_t    atomic;
-  ptw_event_t       ptw;
-  refill_event_t    refill;
-  lr_sc_evevnt_t    lrsc;
-  run_ahead_event_t runahead[DIFFTEST_RUNAHEAD_WIDTH];
-  run_ahead_commit_event_t runahead_commit[DIFFTEST_RUNAHEAD_WIDTH];
-  run_ahead_redirect_event_t runahead_redirect;
-  run_ahead_memdep_pred_t runahead_memdep_pred[DIFFTEST_RUNAHEAD_WIDTH];
-  physical_reg_state_t pregs;
+  trap_event_t     trap;
+  arch_event_t     event;
+  instr_commit_t   commit[DIFFTEST_COMMIT_WIDTH];
+  arch_reg_state_t regs;
+  arch_csr_state_t csr;
+  sbuffer_state_t  sbuffer;
+  store_event_t    store[DIFFTEST_STORE_WIDTH];
+  load_event_t     load[DIFFTEST_COMMIT_WIDTH];
+  atomic_event_t   atomic;
+  ptw_event_t      ptw;
+  refill_event_t   refill;
 } difftest_core_state_t;
 
 enum retire_inst_type {
@@ -264,7 +207,7 @@ public:
   uint32_t num_commit = 0; // # of commits if made progress
   bool has_commit = false;
   // Trigger a difftest checking procdure
-  virtual int step();
+  int step();
   void update_nemuproxy(int);
   inline bool get_trap_valid() {
     return dut.trap.valid;
@@ -291,8 +234,8 @@ public:
   inline arch_reg_state_t *get_arch_reg_state() {
     return &(dut.regs);
   }
-  inline sbuffer_state_t *get_sbuffer_state(uint8_t index) {
-    return &(dut.sbuffer[index]);
+  inline sbuffer_state_t *get_sbuffer_state() {
+    return &(dut.sbuffer);
   }
   inline store_event_t *get_store_event(uint8_t index) {
     return &(dut.store[index]);
@@ -309,47 +252,13 @@ public:
   inline refill_event_t *get_refill_event() {
     return &(dut.refill);
   }
-  inline lr_sc_evevnt_t *get_lr_sc_event() {
-    return &(dut.lrsc);
-  }
-  inline run_ahead_event_t *get_runahead_event(uint8_t index) {
-    return &(dut.runahead[index]);
-  }
-  inline run_ahead_commit_event_t *get_runahead_commit_event(uint8_t index) {
-    return &(dut.runahead_commit[index]);
-  }
-  inline run_ahead_redirect_event_t *get_runahead_redirect_event() {
-    return &(dut.runahead_redirect);
-  }
-  inline run_ahead_memdep_pred_t *get_runahead_memdep_pred(uint8_t index) {
-    return &(dut.runahead_memdep_pred[index]);
-  }
-  inline difftest_core_state_t *get_dut() {
-    return &dut;
-  }
-  inline difftest_core_state_t *get_ref() {
-    return &ref;
-  }
-  inline physical_reg_state_t *get_physical_reg_state() {
-    return &(dut.pregs);
-  }
-  inline debug_mode_t *get_debug_state() {
-    return &(dut.dmregs);
-  }
-
 #ifdef DEBUG_REFILL
   void save_track_instr(uint64_t instr) {
     track_instr = instr;
   }
 #endif
 
-#ifdef DEBUG_MODE_DIFF
-  void debug_mode_copy(uint64_t addr, size_t size, uint32_t data) {
-    proxy->debug_mem_sync(addr, &data, size);
-  }
-#endif
-
-protected:
+private:
   const uint64_t firstCommit_limit = 5000;
   const uint64_t stuck_limit = 5000;
 
@@ -379,9 +288,6 @@ protected:
   int do_golden_memory_update();
   // inline uint64_t *ref_regs_ptr() { return (uint64_t*)&ref.regs; }
   // inline uint64_t *dut_regs_ptr() { return (uint64_t*)&dut.regs; }
-  inline uint64_t get_commit_data(int i) {
-    return dut.pregs.gpr[dut.commit[i].wpdest];
-  }
 
   void raise_trap(int trapCode);
   void clear_step();

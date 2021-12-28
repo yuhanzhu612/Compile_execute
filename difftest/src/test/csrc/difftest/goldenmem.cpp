@@ -20,7 +20,7 @@
 #include <time.h>
 #include "common.h"
 #include "compress.h"
-#include "refproxy.h"
+#include "nemuproxy.h"
 
 // #define DIFFTEST_STORE_COMMIT
 
@@ -52,7 +52,7 @@ void read_goldenmem(paddr_t addr, void *data, uint64_t len) {
   *(uint64_t*)data = paddr_read(addr, len);
 }
 
-bool in_pmem(paddr_t addr) {
+static inline bool in_pmem(paddr_t addr) {
   return (PMEM_BASE <= addr) && (addr <= PMEM_BASE + PMEM_SIZE - 1);
 }
 
@@ -94,10 +94,7 @@ static inline void pmem_write(paddr_t addr, word_t data, int len) {
 
 inline word_t paddr_read(paddr_t addr, int len) {
   if (in_pmem(addr)) return pmem_read(addr, len);
-  else {
-    printf("[Hint] read not in pmem, maybe in speculative state! addr: %lx", addr);
-    return 0;
-  }
+  else panic("read not in pmem! addr: %lx", addr);
   return 0;
 }
 
@@ -105,3 +102,4 @@ inline void paddr_write(paddr_t addr, word_t data, int len) {
   if (in_pmem(addr)) pmem_write(addr, data, len);
   else panic("write not in pmem!");
 }
+

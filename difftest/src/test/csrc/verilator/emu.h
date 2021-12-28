@@ -19,16 +19,38 @@
 
 #include "common.h"
 #include "snapshot.h"
-#include "lightsss.h"
 #include "VSimTop.h"
-#include "VSimTop__Syms.h"
 #include <verilated_vcd_c.h>	// Trace file format header
+#include <sys/wait.h>
 #include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/prctl.h>
 #include <stdlib.h>
 #include <unistd.h>
 #ifdef EMU_THREAD
 #include <verilated_threads.h>
-#endif
+#endif 
+typedef struct shinfo{
+  bool flag;
+  bool notgood;
+  uint64_t endCycles;
+} shinfo;
+
+class ForkShareMemory{
+    //private
+    key_t  key_n ;
+    int shm_id;
+
+public:
+    shinfo *info;    
+
+    ForkShareMemory();
+    ~ForkShareMemory();
+
+    void shwait();
+};
+
 
 struct EmuArgs {
   uint32_t seed;
@@ -49,7 +71,6 @@ struct EmuArgs {
   bool enable_diff;
   bool enable_fork;
   bool enable_jtag;
-  bool enable_runahead;
   bool dump_tl;
 
   EmuArgs() {
@@ -72,7 +93,6 @@ struct EmuArgs {
     enable_diff = true;
     enable_fork = false;
     enable_jtag = false;
-    enable_runahead = false;
     dump_tl = false;
   }
 };
@@ -82,12 +102,11 @@ private:
   VSimTop *dut_ptr;
   VerilatedVcdC* tfp;
   bool enable_waveform;
-  bool force_dump_wave = false;
 #ifdef VM_SAVABLE
   VerilatedSaveMem snapshot_slot[2];
 #endif
   EmuArgs args;
-  LightSSS lightsss;
+  ForkShareMemory forkshm;
 
   enum {
     STATE_GOODTRAP = 0,
@@ -117,11 +136,9 @@ private:
 #if VM_COVERAGE == 1
   inline void save_coverage(time_t t);
 #endif
-  void fork_child_init();
-  bool is_fork_child() { return lightsss.is_child(); }
 
 public:
-  Emulator(int argc, const char *argv[]);
+Emulator(int argc, const char *argv[]);
   ~Emulator();
   uint64_t execute(uint64_t max_cycle, uint64_t max_instr);
   uint64_t get_cycles() const { return cycles; }
@@ -129,7 +146,7 @@ public:
   bool is_good_trap() {
     return trapCode == STATE_GOODTRAP || trapCode == STATE_LIMIT_EXCEEDED;
   };
-  int get_trapcode() { return trapCode; }
+  int get_trapcode() { return trapCode; }  
 };
 
 #endif

@@ -27,7 +27,7 @@
 typedef uint64_t axi_addr_t;
 typedef uint64_t axi_data_t[AXI_DATA_WIDTH_64];
 #define axi_copy_data(dest, src) \
-  memcpy(dest, src, sizeof(uint64_t)*AXI_DATA_WIDTH_64);
+  memcpy(&dest, &src, sizeof(uint64_t)*AXI_DATA_WIDTH_64);
 
 struct axi_aw_channel {
   uint8_t       ready;

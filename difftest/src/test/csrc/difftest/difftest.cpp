@@ -19,6 +19,10 @@
 #include "ram.h"
 #include "spikedasm.h"
 
+#ifndef FIRST_INST_ADDRESS
+#define FIRST_INST_ADDRESS 0x80000000
+#endif
+
 static const char *reg_name[DIFFTEST_NR_REG+1] = {
   "$0",  "ra",  "sp",   "gp",   "tp",  "t0",  "t1",   "t2",
   "s0",  "s1",  "a0",   "a1",   "a2",  "a3",  "a4",   "a5",
@@ -34,7 +38,6 @@ static const char *reg_name[DIFFTEST_NR_REG+1] = {
   "satp",
   "mip", "mie", "mscratch", "sscratch", "mideleg", "medeleg",
   "mtval", "stval", "mtvec", "stvec", "mode",
-//  "debug mode", "dcsr", "dpc", "dscratch0", "dscratch1",
 };
 
 Difftest **difftest = NULL;
@@ -86,13 +89,8 @@ int Difftest::step() {
   progress = false;
   ticks++;
 
-#ifdef BASIC_DIFFTEST_ONLY
-  proxy->regcpy(ref_regs_ptr, REF_TO_DUT);
-  dut.csr.this_pc = ref.csr.this_pc;
-#else
   // TODO: update nemu/xs to fix this_pc comparison
   dut.csr.this_pc = dut.commit[0].pc;
-#endif
 
   if (check_timeout()) {
     return 1;
@@ -118,22 +116,12 @@ int Difftest::step() {
   }
 #endif
 
-#ifdef DEBUG_MODE_DIFF
-  // skip load & store insts in debug mode
-  // for other insts copy inst content to ref's dummy debug module
-  for(int i = 0; i < DIFFTEST_COMMIT_WIDTH; i++){
-    if(DEBUG_MEM_REGION(dut.commit[i].valid, dut.commit[i].pc))
-      debug_mode_copy(dut.commit[i].pc, dut.commit[i].isRVC ? 2 : 4, dut.commit[i].inst);     
-  }
-
-#endif
-
   num_commit = 0; // reset num_commit this cycle to 0
   // interrupt has the highest priority
   if (dut.event.interrupt) {
     dut.csr.this_pc = dut.event.exceptionPC;
     do_interrupt();
-  } else if (dut.event.exception) {
+  } else if(dut.event.exception) {
     // We ignored instrAddrMisaligned exception (0) for better debug interface
     // XiangShan should always support RVC, so instrAddrMisaligned will never happen
     // TODO: update NEMU, for now, NEMU will update pc when exception happen
@@ -144,6 +132,7 @@ int Difftest::step() {
     for (int i = 0; i < DIFFTEST_COMMIT_WIDTH && dut.commit[i].valid; i++) {
       do_instr_commit(i);
       dut.commit[i].valid = 0;
+
       num_commit++;
       // TODO: let do_instr_commit return number of instructions in this uop
       if (dut.commit[i].fused) {
@@ -191,19 +180,11 @@ void Difftest::do_exception() {
   if (dut.event.exception == 12 || dut.event.exception == 13 || dut.event.exception == 15) {
     // printf("exception cause: %d\n", dut.event.exception);
     struct ExecutionGuide guide;
-    guide.force_raise_exception = true;
-    guide.exception_num = dut.event.exception;
+    guide.exceptionNo = dut.event.exception;
     guide.mtval = dut.csr.mtval;
     guide.stval = dut.csr.stval;
-    guide.force_set_jump_target = false;
     proxy->guided_exec(&guide);
   } else {
-  #ifdef DEBUG_MODE_DIFF
-    if(DEBUG_MEM_REGION(true, dut.event.exceptionPC)){
-      printf("exception instr is %x\n", dut.event.exceptionInst);
-      debug_mode_copy(dut.event.exceptionPC, 4, dut.event.exceptionInst);
-    }
-  #endif
     proxy->exec(1);
   }
   progress = true;
@@ -214,35 +195,24 @@ void Difftest::do_instr_commit(int i) {
   last_commit = ticks;
 
   // store the writeback info to debug array
-#ifdef BASIC_DIFFTEST_ONLY
-  uint64_t commit_pc = ref.csr.this_pc;
-  uint64_t commit_instr = 0x0;
-#else
-  uint64_t commit_pc = dut.commit[i].pc;
-  uint64_t commit_instr = dut.commit[i].inst;
-#endif
-  state->record_inst(commit_pc, commit_instr, dut.commit[i].wen, dut.commit[i].wdest, get_commit_data(i), dut.commit[i].skip != 0);
+  state->record_inst(dut.commit[i].pc, dut.commit[i].inst, dut.commit[i].wen, dut.commit[i].wdest, dut.commit[i].wdata, dut.commit[i].skip != 0);
 
   // sync lr/sc reg status
-  if (dut.lrsc.valid) {
+  if (dut.commit[i].scFailed) {
     struct SyncState sync;
-    sync.lrscValid = dut.lrsc.success;
+    sync.lrscValid = 0;
+    sync.lrscAddr = 0;
     proxy->uarchstatus_cpy((uint64_t*)&sync, DUT_TO_REF); // sync lr/sc microarchitectural regs
-    // clear SC instruction valid bit
-    dut.lrsc.valid = 0;
   }
 
   // MMIO accessing should not be a branch or jump, just +2/+4 to get the next pc
   // to skip the checking of an instruction, just copy the reg state to reference design
-  if (dut.commit[i].skip || (DEBUG_MEM_REGION(dut.commit[i].valid, dut.commit[i].pc) && IS_LOAD_STORE(dut.commit[i].inst))) {
+  if (dut.commit[i].skip) {
     proxy->regcpy(ref_regs_ptr, REF_TO_DIFFTEST);
     ref.csr.this_pc += dut.commit[i].isRVC ? 2 : 4;
     if (dut.commit[i].wen && dut.commit[i].wdest != 0) {
-      // We use the physical register file to get wdata
       // TODO: FPR
-      ref_regs_ptr[dut.commit[i].wdest] = get_commit_data(i);
-      // printf("Debug Mode? %x is ls? %x\n", DEBUG_MEM_REGION(dut.commit[i].valid, dut.commit[i].pc), IS_LOAD_STORE(dut.commit[i].inst));
-      // printf("skip %x %x %x %x %x\n", dut.commit[i].pc, dut.commit[i].inst, get_commit_data(i), dut.commit[i].wpdest, dut.commit[i].wdest);
+      ref_regs_ptr[dut.commit[i].wdest] = dut.commit[i].wdata;
     }
     proxy->regcpy(ref_regs_ptr, DIFFTEST_TO_REF);
     return;
@@ -259,9 +229,9 @@ void Difftest::do_instr_commit(int i) {
   if (NUM_CORES > 1) {
     if (dut.load[i].fuType == 0xC || dut.load[i].fuType == 0xF) {
       proxy->regcpy(ref_regs_ptr, REF_TO_DUT);
-      if (dut.commit[i].wen && ref_regs_ptr[dut.commit[i].wdest] != get_commit_data(i)) {
+      if (dut.commit[i].wen && ref_regs_ptr[dut.commit[i].wdest] != dut.commit[i].wdata) {
         // printf("---[DIFF Core%d] This load instruction gets rectified!\n", this->id);
-        // printf("---    ltype: 0x%x paddr: 0x%lx wen: 0x%x wdst: 0x%x wdata: 0x%lx pc: 0x%lx\n", dut.load[i].opType, dut.load[i].paddr, dut.commit[i].wen, dut.commit[i].wdest, get_commit_data(i), dut.commit[i].pc);
+        // printf("---    ltype: 0x%x paddr: 0x%lx wen: 0x%x wdst: 0x%x wdata: 0x%lx pc: 0x%lx\n", dut.load[i].opType, dut.load[i].paddr, dut.commit[i].wen, dut.commit[i].wdest, dut.commit[i].wdata, dut.commit[i].pc);
         uint64_t golden;
         int len = 0;
         if (dut.load[i].fuType == 0xC) {
@@ -292,16 +262,16 @@ void Difftest::do_instr_commit(int i) {
           }
         }
         // printf("---    golden: 0x%lx  original: 0x%lx\n", golden, ref_regs_ptr[dut.commit[i].wdest]);
-        if (golden == get_commit_data(i)) {
+        if (golden == dut.commit[i].wdata) {
           proxy->memcpy(dut.load[i].paddr, &golden, len, DUT_TO_DIFFTEST);
           if (dut.commit[i].wdest != 0) {
-            ref_regs_ptr[dut.commit[i].wdest] = get_commit_data(i);
+            ref_regs_ptr[dut.commit[i].wdest] = dut.commit[i].wdata;
             proxy->regcpy(ref_regs_ptr, DUT_TO_DIFFTEST);
           }
         } else if (dut.load[i].fuType == 0xF) {  //  atomic instr carefully handled
           proxy->memcpy(dut.load[i].paddr, &golden, len, DIFFTEST_TO_REF);
           if (dut.commit[i].wdest != 0) {
-            ref_regs_ptr[dut.commit[i].wdest] = get_commit_data(i);
+            ref_regs_ptr[dut.commit[i].wdest] = dut.commit[i].wdata;
             proxy->regcpy(ref_regs_ptr, DUT_TO_DIFFTEST);
           }
         } else {
@@ -318,27 +288,13 @@ void Difftest::do_instr_commit(int i) {
 }
 
 void Difftest::do_first_instr_commit() {
-  if (!has_commit && dut.commit[0].valid) {
-#ifndef BASIC_DIFFTEST_ONLY
-    if (dut.commit[0].pc != FIRST_INST_ADDRESS) {
-      return;
-    }
-#endif
+  if (!has_commit && dut.commit[0].valid && dut.commit[0].pc == FIRST_INST_ADDRESS) {
     printf("The first instruction of core %d has commited. Difftest enabled. \n", id);
     has_commit = 1;
-    nemu_this_pc = FIRST_INST_ADDRESS;
+    nemu_this_pc = dut.csr.this_pc;
 
     proxy->memcpy(0x80000000, get_img_start(), get_img_size(), DIFFTEST_TO_REF);
-    // Use a temp variable to store the current pc of dut
-    uint64_t dut_this_pc = dut.csr.this_pc;
-    // NEMU should always start at FIRST_INST_ADDRESS
-    dut.csr.this_pc = FIRST_INST_ADDRESS;
     proxy->regcpy(dut_regs_ptr, DIFFTEST_TO_REF);
-    dut.csr.this_pc = dut_this_pc;
-    // Do not reconfig simulator 'proxy->update_config(&nemu_config)' here:
-    // If this is main sim thread, simulator has its own initial config
-    // If this process is checkpoint wakeuped, simulator's config has already been updated,
-    // do not override it.
   }
 }
 
@@ -369,10 +325,6 @@ int Difftest::do_refill_check() {
   dut.refill.addr = dut.refill.addr - dut.refill.addr % 64;
   if (dut.refill.valid == 1 && dut.refill.addr != last_valid_addr) {
     last_valid_addr = dut.refill.addr;
-    if(!in_pmem(dut.refill.addr)){
-      // speculated illegal mem access should be ignored
-      return 0;
-    }
     for (int i = 0; i < 8; i++) {
       read_goldenmem(dut.refill.addr + i*8, &buf, 8);
       if (dut.refill.data[i] != *((uint64_t*)buf)) {
@@ -492,16 +444,13 @@ int Difftest::do_golden_memory_update() {
     dumpGoldenMem("Init", track_instr, ticks);    
   }
 
-  for(int i = 0; i < DIFFTEST_SBUFFER_RESP_WIDTH; i++){
-    if (dut.sbuffer[i].resp) {
-      dut.sbuffer[i].resp = 0;
-      update_goldenmem(dut.sbuffer[i].addr, dut.sbuffer[i].data, dut.sbuffer[i].mask, 64);
-      if (dut.sbuffer[i].addr == track_instr) {
-        dumpGoldenMem("Store", track_instr, ticks);
-      }
+  if (dut.sbuffer.resp) {
+    dut.sbuffer.resp = 0;
+    update_goldenmem(dut.sbuffer.addr, dut.sbuffer.data, dut.sbuffer.mask, 64);
+    if (dut.sbuffer.addr == track_instr) {
+      dumpGoldenMem("Store", track_instr, ticks);
     }
   }
-
   if (dut.atomic.resp) {
     dut.atomic.resp = 0;
     int ret = handle_atomic(id, dut.atomic.addr, dut.atomic.data, dut.atomic.mask, dut.atomic.fuop, dut.atomic.out);
@@ -549,9 +498,7 @@ void Difftest::clear_step() {
   for (int i = 0; i < DIFFTEST_COMMIT_WIDTH; i++) {
     dut.commit[i].valid = 0;
   }
-  for (int i = 0; i < DIFFTEST_SBUFFER_RESP_WIDTH; i++) {
-    dut.sbuffer[i].resp = 0;
-  }
+  dut.sbuffer.resp = 0;
   for (int i = 0; i < DIFFTEST_STORE_WIDTH; i++) {
     dut.store[i].valid = 0;
   }
@@ -576,39 +523,37 @@ void DiffState::display(int coreid) {
 
   printf("\n============== Commit Group Trace (Core %d) ==============\n", coreid);
   for (int j = 0; j < DEBUG_GROUP_TRACE_SIZE; j++) {
-    auto retire_pointer = (retire_group_pointer + DEBUG_GROUP_TRACE_SIZE - 1) % DEBUG_GROUP_TRACE_SIZE;
-    printf("commit group [%02d]: pc %010lx cmtcnt %d%s\n",
+    printf("commit group [%02d]: pc %010lx cmtcnt %d %s\n",
         j, retire_group_pc_queue[j], retire_group_cnt_queue[j],
-        (j == retire_pointer)?" <--" : "");
+        (j==((retire_group_pointer-1)%DEBUG_INST_TRACE_SIZE))?"<--":"");
   }
 
   printf("\n============== Commit Instr Trace ==============\n");
   for (int j = 0; j < DEBUG_INST_TRACE_SIZE; j++) {
-    switch (retire_inst_type_queue[j]) {
+    switch(retire_inst_type_queue[j]){
       case RET_NORMAL:
-        printf("commit inst [%02d]: pc %010lx inst %08x wen %x dst %08x data %016lx%s",
-            j, retire_inst_pc_queue[j], retire_inst_inst_queue[j],
-            retire_inst_wen_queue[j] != 0, retire_inst_wdst_queue[j],
-            retire_inst_wdata_queue[j], retire_inst_skip_queue[j]?" (skip)":"");
+        printf("commit inst [%02d]: pc %010lx inst %08x wen %x dst %08x data %016lx %s ",
+            j, retire_inst_pc_queue[j], retire_inst_inst_queue[j], retire_inst_wen_queue[j]!=0, retire_inst_wdst_queue[j],
+            retire_inst_wdata_queue[j],
+            retire_inst_skip_queue[j]?"(skip)":"");
         break;
       case RET_EXC:
-        printf("exception   [%02d]: pc %010lx inst %08x cause %016lx", j,
-            retire_inst_pc_queue[j], retire_inst_inst_queue[j], retire_inst_wdata_queue[j]);
+        printf("exception   [%02d]: pc %010lx inst %08x cause %016lx ",
+            j, retire_inst_pc_queue[j], retire_inst_inst_queue[j], retire_inst_wdata_queue[j]);
         break;
       case RET_INT:
-        printf("interrupt   [%02d]: pc %010lx inst %08x cause %016lx", j,
-            retire_inst_pc_queue[j], retire_inst_inst_queue[j], retire_inst_wdata_queue[j]);
+        printf("interrupt   [%02d]: pc %010lx inst %08x cause %016lx ",
+            j, retire_inst_pc_queue[j], retire_inst_inst_queue[j], retire_inst_wdata_queue[j]);
         break;
     }
-    if (!spike_invalid) {
+    if(!spike_invalid){
       char inst_str[32];
       char dasm_result[64] = {0};
       sprintf(inst_str, "%08x", retire_inst_inst_queue[j]);
       spike_dasm(dasm_result, inst_str);
-      printf(" %s", dasm_result);
+      printf("%s ", dasm_result);
     }
-    auto retire_pointer = (retire_inst_pointer + DEBUG_INST_TRACE_SIZE - 1) % DEBUG_INST_TRACE_SIZE;
-    printf("%s\n", (j == retire_pointer)?" <--" : "");
+    printf("%s\n", (j==((retire_inst_pointer-1)%DEBUG_INST_TRACE_SIZE))?"<--":"");
 
   }
   fflush(stdout);
