@@ -3,7 +3,12 @@
 !*.h
 !*.c
 !*.cc
+!*.cpp
 !*.S
+!*.scala
+!*.v
+!*.md
+!*.mk
 !Makefile
 !README
 !README.md
