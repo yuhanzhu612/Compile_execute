@@ -19,3 +19,34 @@
 2. 自定义指令架构
 3. 编译更加复杂的源程序
 4. 比较执行速率
+
+## Environment
+
+```shell
+echo export NOOP_HOME=$(pwd) >> ~/.bashrc
+echo export AM_HOME=$(pwd)/abstract-machine >> ~/.bashrc
+echo export NEMU_HOME=$(pwd)/NEMU >> ~/.bashrc
+echo export DRAMSIM3_HOME=$(pwd)/DRAMsim3 >> ~/.bashrc
+source ~/.bashrc
+
+```
+
+## Config
+
+```shell
+cd $NEMU_HOME
+make menuconfig
+make riscv64-xs-ref_defconfig
+make -j4
+
+```
+
+```shell
+cd $DRAMSIM3_HOME
+mkdir build
+cd build
+cmake ..
+make -j4
+cmake .. -DTHERMAL=1
+
+```
