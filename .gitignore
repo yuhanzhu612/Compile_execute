@@ -6,5 +6,7 @@
 /am-kernels/tests/cpu-tests
 /am-kernels/tests/my-tests/build
 /dramsim3*
+/abstract-machine/am/build
+/abstract-machine/klib/build
 .metals
 .vscode
