@@ -5,6 +5,7 @@
 /am-kernels/tests/am-tests
 /am-kernels/tests/cpu-tests
 /am-kernels/tests/my-tests/build
+/am-kernels/benchmarks
 /dramsim3*
 /abstract-machine/am/build
 /abstract-machine/klib/build

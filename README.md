@@ -45,7 +45,7 @@ make -j4
 cd $DRAMSIM3_HOME
 mkdir build
 cd build
-cmake ..
+cmake -D COSIM=1 ..
 make -j4
 cmake .. -DTHERMAL=1
 

@@ -23,7 +23,7 @@ Makefile.%: tests/%.c latest
 	fi
 	-@rm -f Makefile.$*
 
-	mv build/$(ALL)-$(ARCH).* build/$(ARCH)
+	mv build/*$(ARCH).* build/$(ARCH)
 
 run: all
 	@cat $(RESULT)

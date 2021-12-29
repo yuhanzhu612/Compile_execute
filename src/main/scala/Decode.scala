@@ -94,10 +94,12 @@ class Decode extends Module {
   val srlw    = inst === SRLW
   val sraw    = inst === SRAW
   val mret    = inst === MRET
+  val mulw    = inst === MULW
+  val divw    = inst === DIVW
   val typeR   = add  || sub  || sll  || slt  || sltu || 
                 xor  || srl  || sra  || or   || and  || 
                 addw || subw || sllw || srlw || sraw || 
-                mret
+                mret || mulw || divw
   //B-TYPE 6
   val beq     = inst === BEQ
   val bne     = inst === BNE
@@ -136,6 +138,8 @@ class Decode extends Module {
   val alu_sll   = slli || slliw || sll || sllw
   val alu_srl   = srli || srliw || srl || srlw
   val alu_sra   = srai || sraiw || sra || sraw
+  val alu_mul   = mulw
+  val alu_div   = divw
 
   val rs1_addr  = Mux(my_inst, "b01010".U, inst(19, 15))
   val rs2_addr  = inst(24, 20)
@@ -174,7 +178,9 @@ class Decode extends Module {
                   (Fill(ALU_X.length, alu_sra ) & s"b$ALU_SRA".U ) |
                   (Fill(ALU_X.length, alu_srl ) & s"b$ALU_SRL".U ) |
                   (Fill(ALU_X.length, alu_sub ) & s"b$ALU_SUB".U ) |
-                  (Fill(ALU_X.length, alu_xor ) & s"b$ALU_XOR".U )
+                  (Fill(ALU_X.length, alu_xor ) & s"b$ALU_XOR".U ) |
+                  (Fill(ALU_X.length, alu_mul ) & s"b$ALU_MUL".U ) |
+                  (Fill(ALU_X.length, alu_div ) & s"b$ALU_DIV".U )
   val id_loadop = (Fill(LOAD_X.length, lb ) & s"b$LOAD_LB".U ) | 
                   (Fill(LOAD_X.length, lh ) & s"b$LOAD_LH".U ) |  
                   (Fill(LOAD_X.length, lw ) & s"b$LOAD_LW".U ) |  
@@ -210,7 +216,8 @@ class Decode extends Module {
                     s"b$TYPE_S".U -> imm_s,
                   ))
   val id_typew  = addiw || slliw || srliw || sraiw || addw ||
-                  subw  || sllw  || srlw  || sraw
+                  subw  || sllw  || srlw  || sraw  || mulw || 
+                  divw
 
   val id_bp_taken   = io.in.bp_taken
   val id_bp_targer  = io.in.bp_targer                           
