@@ -60,7 +60,8 @@ class Execution extends Module {
     s"b$ALU_SRL".U  -> (in1 >> shamt).asUInt(),
     s"b$ALU_SRA".U  -> (in1.asSInt() >> shamt).asUInt(),
     s"b$ALU_MUL".U  -> (in1 * in2).asUInt(),
-    s"b$ALU_DIV".U  -> (in1 / in2).asUInt()
+    s"b$ALU_DIV".U  -> (in1 / in2).asUInt(),
+    s"b$ALU_REM".U  -> (in1 % in2).asUInt()
   ))
   alu_result := Mux(ex_typew, Cat(Fill(32, alu_result_0(31)), alu_result_0(31, 0)), alu_result_0)
 

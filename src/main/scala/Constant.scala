@@ -4,19 +4,20 @@ import chisel3._
 import chisel3.util._
 
 trait Constant {
-  val ALU_X     = "????????????"
-  val ALU_ADD   = "000000000001"
-  val ALU_SUB   = "000000000010"
-  val ALU_SLT   = "000000000100"
-  val ALU_SLTU  = "000000001000"
-  val ALU_XOR   = "000000010000"
-  val ALU_OR    = "000000100000"
-  val ALU_AND   = "000001000000"
-  val ALU_SLL   = "000010000000"
-  val ALU_SRL   = "000100000000"
-  val ALU_SRA   = "001000000000"
-  val ALU_MUL   = "010000000000"
-  val ALU_DIV   = "100000000000"
+  val ALU_X     = "?????????????"
+  val ALU_ADD   = "0000000000001"
+  val ALU_SUB   = "0000000000010"
+  val ALU_SLT   = "0000000000100"
+  val ALU_SLTU  = "0000000001000"
+  val ALU_XOR   = "0000000010000"
+  val ALU_OR    = "0000000100000"
+  val ALU_AND   = "0000001000000"
+  val ALU_SLL   = "0000010000000"
+  val ALU_SRL   = "0000100000000"
+  val ALU_SRA   = "0001000000000"
+  val ALU_MUL   = "0010000000000"
+  val ALU_DIV   = "0100000000000"
+  val ALU_REM   = "1000000000000"
 
   val SIZE_B  = "b00".U
   val SIZE_H  = "b01".U
