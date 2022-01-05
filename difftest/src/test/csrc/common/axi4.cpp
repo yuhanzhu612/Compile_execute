@@ -80,7 +80,8 @@ bool axi_check_waddr_fire(const axi_channel &axi) {
   if (axi.aw.valid && axi.aw.ready) {
     assert(axi.aw.burst == 1 || (axi.aw.burst == 2 && ((axi.aw.addr & 0x3f) == 0)));
 #ifdef DEBUG_LOG_AXI4
-    printf("axi aw channel fired\n");
+    //printf("axi aw channel fired\n");
+    printf("axi aw channel fired addr = 0x%lx, id = %d\n", axi.aw.addr, axi.aw.id);
 #endif
     return true;
   }
@@ -96,7 +97,8 @@ void axi_accept_wdata(axi_channel &axi) {
 bool axi_check_wdata_fire(const axi_channel &axi) {
   if (axi.w.valid && axi.w.ready) {
 #ifdef DEBUG_LOG_AXI4
-    printf("axi w channel fired\n");
+    //printf("axi w channel fired\n");
+    printf("axi w channel fired strb = %d\n", axi.w.strb);
 #endif
     return true;
   }

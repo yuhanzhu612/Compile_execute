@@ -2,9 +2,8 @@
 /build
 /DRAMsim3
 /NEMU
-/am-kernels/tests/am-tests
-/am-kernels/tests/cpu-tests
-/am-kernels/tests/my-tests/build
+/am-kernels/tests
+/am-kernels/kernels
 /am-kernels/benchmarks
 /dramsim3*
 /abstract-machine/am/build

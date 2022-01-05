@@ -107,7 +107,7 @@ Indicates that the test has passed after a `HIT GOOD TRAP` is displayed on the t
 
 ![image](https://github.com/yuhanzhu612/Compile_execute/blob/main/HIT%20GOOD%20TRAP.png)
 
-If your CPU is not right, you can see `ABORT at pc` or `HIT BAD TRAP`.
+If your CPU is not right, you can see `ABORT` or `HIT BAD TRAP`.
 
 Use Difftest to debug your CPU.
 
